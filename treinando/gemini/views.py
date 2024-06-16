@@ -95,7 +95,10 @@ def create(request):
         model = genai.GenerativeModel('gemini-pro') 
         chat = model.start_chat(history=formatted_messages)
 
-        scripts = Script.objects.all()
+        aluno = Aluno.objects.get(id=id_aluno)
+        coordenador = Coordenador.objects.filter(instituicao=aluno.instituicao_id, curso=aluno.curso_id).first()
+
+        scripts = Script.objects.filter(id_coordenador=coordenador.id)
         serialized_data = []
         if len(scripts) > 0:
             for script in scripts:
@@ -183,6 +186,7 @@ def cadastrar_aluno(request):
         serializer = AlunoSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
+            print(serializer)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -478,7 +482,7 @@ def excluir_setores(request, id):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'DELETE':
-        id.delete();
+        id.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -660,7 +664,7 @@ def enviar_email_coordenador(id_aluno, historico_conversa, ultima_mensagem, conv
             
     if coordenador:
         assunto = 'Agendamento realizado'
-        msg = f'Um agendamento foi realizado para o atendimento do aluno abaixo: \n\nAluno:{aluno.nome} \nEmail: {aluno.email} \n\nPor favor, entre em contato assim que possível.\n \nChat:\n{conversa_formatada} \n\n Justificativa do agendamento: {classificacao}'
+        msg = f'Um agendamento foi realizado para o atendimento do aluno abaixo: \n\nAluno:{aluno.nome} \nEmail: {aluno.email} \n\nPor favor, entre em contato assim que possível.\n \nChat:\n{conversa_formatada}'
         remetente = "ads.senac.tcs@gmail.com"
         send_mail(assunto, msg, remetente, recipient_list=[coordenador.email,'ads.senac.tcs@gmail.com', aluno.email])        
         return Response({'mensagem': "Foi realizado um agendamento para o coordenador do seu curso, você pode realizar o acompanhamento através do email."}, status=status.HTTP_201_CREATED)
@@ -728,7 +732,7 @@ def realiza_acao_encaminhamento(conversa_formatada, model, id_aluno, historico_c
                 return
             
             assunto = 'Encaminhamento realizado'
-            msg = f'Um encaminhamento foi realizado para o atendimento do aluno abaixo: \n\nAluno:{aluno.nome} \nEmail: {aluno.email} \n\nPor favor, entre em contato assim que possível.\n \nChat:\n{conversa_formatada}\n\n Justificativa do encaminhamento: {classificacao.text}'
+            msg = f'Um encaminhamento foi realizado para o atendimento do aluno abaixo: \n\nAluno:{aluno.nome} \nEmail: {aluno.email} \n\nPor favor, entre em contato assim que possível.\n \nChat:\n{conversa_formatada}'
             remetente = "ads.senac.tcs@gmail.com"
             for pessoa in pessoas_setor:
                 recipient_list = [pessoa.email, 'ads.senac.tcs@gmail.com', aluno.email]
