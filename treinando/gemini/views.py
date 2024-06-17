@@ -185,8 +185,13 @@ def cadastrar_aluno(request):
 
         serializer = AlunoSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            print(serializer)
+            aluno = serializer.save()
+            controle_bot = {
+                'id_aluno': aluno.id
+            }
+            serializer_controle_bot = ControleBotSerializer(data=controle_bot)
+            if serializer_controle_bot.is_valid():
+                serializer_controle_bot.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -821,6 +826,25 @@ def verificar_status_bot(request):
         else:
             return Response({"error": "ControleBot não encontrado para o id_aluno fornecido"}, status=status.HTTP_404_NOT_FOUND)
 
+    return Response(status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+def dashboard(request):
+    if request.method == 'GET':
+        id_coordenador = request.GET.get('id_coordenador')
+        id_curso = request.GET.get('curso')
+        id_instituicao = request.GET.get('instituicao')
+        qtde_conversas = Conversa.objects.filter().count()
+        qtde_setores = Setor.objects.filter(id_coordenador=id_coordenador).count()
+        qtde_alunos = Aluno.objects.filter(curso=id_curso, instituicao=id_instituicao).count()
+        
+        resposta = {
+            'qtde_conversas': qtde_conversas,
+            'qtde_setores': qtde_setores,
+            'qtde_alunos': qtde_alunos
+        }
+        
+        return Response(resposta, status=status.HTTP_200_OK)
     return Response(status=status.HTTP_400_BAD_REQUEST)
 
 def get_controle_bot(id_aluno):
