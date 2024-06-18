@@ -13,6 +13,19 @@ import random
 from datetime import datetime, timedelta
 from django.utils import timezone as django_timezone
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Count
+
+import reportlab
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, PageTemplate, Frame
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+from django.http import HttpResponse
+
+
+import os
+
+import io
 
 
 # Create your views here.
@@ -83,7 +96,7 @@ def create(request):
     mensagem_count = Mensagem.objects.filter(id_conversa_id=ultima_mensagem.id_conversa, quem_enviou='aluno').count()
     controle_bot = get_controle_bot(id_aluno)
 
-    if(controle_bot.bot_pode_responder and mensagem_count >= 2):
+    if(controle_bot.bot_pode_responder and mensagem_count >= 6):
         tipo = verificar_encaminhamento_agendamento(id_aluno, ultima_mensagem)
         salvar_mensagem(id_aluno, id_coordenador, "A conversa foi finalizada", "bot", data_hora)
         classificar_conversa(historico_conversa, user, ultima_mensagem.id_conversa)
@@ -536,12 +549,17 @@ def salvar_mensagem(id_aluno, id_coordenador, texto_mensagem, quem_enviou, data_
                 
             data['id_conversa'] = ultima_mensagem.id_conversa.id
             classificar_conversa(formatted_messages, user, ultima_mensagem.id_conversa)
-            data['id_conversa'] = adicionar_conversa()
+            aluno = Aluno.objects.get(id=id_aluno)
+            coordenador = Coordenador.objects.filter(instituicao=aluno.instituicao_id, curso=aluno.curso_id).first()
+
+            data['id_conversa'] = adicionar_conversa(coordenador.id)
             serializer = salvar_nova_mensagem(data) 
             return Response(status=status.HTTP_201_CREATED)
         elif (ultima_mensagem.id_conversa == None):
             #se não tem uma conversa associada na última mensagem
-            data['id_conversa'] = adicionar_conversa()
+            aluno = Aluno.objects.get(id=id_aluno)
+            coordenador = Coordenador.objects.filter(instituicao=aluno.instituicao_id, curso=aluno.curso_id).first()
+            data['id_conversa'] = adicionar_conversa(coordenador.id)
             serializer = salvar_nova_mensagem(data)  
             if(serializer):      
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -556,12 +574,16 @@ def salvar_mensagem(id_aluno, id_coordenador, texto_mensagem, quem_enviou, data_
                 return Response(status=status.HTTP_201_CREATED)
             else:
                 #se a conversa não está ativa deve iniciar uma nova e a mensagem é salva com esse id da conversa nova
-                data['id_conversa'] = adicionar_conversa()
+                aluno = Aluno.objects.get(id=id_aluno)
+                coordenador = Coordenador.objects.filter(instituicao=aluno.instituicao_id, curso=aluno.curso_id).first()
+                data['id_conversa'] = adicionar_conversa(coordenador.id)
                 serializer = salvar_nova_mensagem(data) 
                 return Response(status=status.HTTP_201_CREATED)
     else:
         #se não tem uma última mensagem (se o aluno não enviou nenhuma mensagem ainda)
-        data['id_conversa'] = adicionar_conversa()
+        aluno = Aluno.objects.get(id=id_aluno)
+        coordenador = Coordenador.objects.filter(instituicao=aluno.instituicao_id, curso=aluno.curso_id).first()
+        data['id_conversa'] = adicionar_conversa(coordenador.id)
         serializer = salvar_nova_mensagem(data) 
         return Response(status=status.HTTP_201_CREATED)
 
@@ -595,9 +617,11 @@ def get_historico_conversa(ultima_mensagem):
         
     return formatted_messages
 
-def adicionar_conversa():
+def adicionar_conversa(id_coordenador):
+    print(id_coordenador)
     data = {
-        'status': True
+        'status': True,
+        'id_coordenador': id_coordenador
     }
     serializer = ConversaSerializer(data = data)
     if serializer.is_valid():
@@ -831,17 +855,35 @@ def verificar_status_bot(request):
 @api_view(['GET'])
 def dashboard(request):
     if request.method == 'GET':
-        id_coordenador = request.GET.get('id_coordenador')
+        id_coordenador = int(request.GET.get('id_coordenador'))
         id_curso = request.GET.get('curso')
         id_instituicao = request.GET.get('instituicao')
-        qtde_conversas = Conversa.objects.filter().count()
+        qtde_conversas = Conversa.objects.filter(id_coordenador=id_coordenador).count()
         qtde_setores = Setor.objects.filter(id_coordenador=id_coordenador).count()
         qtde_alunos = Aluno.objects.filter(curso=id_curso, instituicao=id_instituicao).count()
+
+        maior_indicador = Conversa.objects.filter(id_coordenador=id_coordenador)
+
+        result = maior_indicador.values('id_indicador_id').annotate(count=Count('id_indicador_id')).order_by('-count').first()
+
+        if result:
+            id_indicador = result['id_indicador_id']
+            nome_indicador = Indicador.objects.get(id=id_indicador).nome
+            maior_indicador = {
+                'nome_indicador': nome_indicador,
+                'count': result['count']
+            }
+        else:
+            maior_indicador = {
+                'nome_indicador': None,
+                'count': None
+            }
         
         resposta = {
             'qtde_conversas': qtde_conversas,
             'qtde_setores': qtde_setores,
-            'qtde_alunos': qtde_alunos
+            'qtde_alunos': qtde_alunos,
+            'maior_indicador': maior_indicador
         }
         
         return Response(resposta, status=status.HTTP_200_OK)
@@ -921,3 +963,59 @@ def finalizar_conversa(conversa):
         print(serializer.errors) 
 
 
+
+def strToDatetime(data):
+    formato_string = "%Y-%m-%dT%H:%M:%S.%fZ"
+    return datetime.strptime(data, formato_string)
+
+def header(canvas, doc):
+    canvas.saveState()
+    getcwd = os.getcwd()
+    imagem = os.path.join(getcwd,"logo", "logo.png")
+    canvas.drawImage(imagem, 250, 700, width=100, height = 100)
+    canvas.drawString(258, 710, 'CoordenaAgora')
+
+@api_view(['POST'])
+def gerar_relatorio(request):
+    try:
+        id_coordenador = request.data.get('id_coordenador')
+        indicadores = request.data.get('indicadores')
+        data_inicial = strToDatetime(request.data.get('data_inicial')).replace(hour=0, minute=0,second=0, microsecond=0)
+        data_final = strToDatetime(request.data.get('data_final')).replace(hour=23, minute=59,second=59, microsecond=99)
+    except:
+        return Response({"error": "Erro ao obter dados da requisição"}, status=status.HTTP_400_BAD_REQUEST)
+    
+
+    teste = Conversa.objects.all()
+    count = {}
+    for indicador in indicadores:
+        count[indicador['nome']] = Conversa.objects.filter(data_hora__range=[data_inicial, data_final], id_indicador=indicador['id'], id_coordenador=id_coordenador).count()
+
+    buffer = io.BytesIO()
+    documento = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=2*cm, leftMargin=1*cm, topMargin=2*cm, bottomMargin=1*cm)
+    frame = Frame(documento.leftMargin, documento.bottomMargin, documento.width, documento.height)
+    h = PageTemplate(frames=frame, onPage=header)
+    documento.addPageTemplates([h])
+    
+    elementos = [Spacer(1, 50)]
+    elementos.append(Paragraph('Relatório de ' + data_inicial.strftime('%d/%m/%Y') + ' até ' + data_final.strftime('%d/%m/%Y') + ':'))
+    elementos.append(Spacer(1, 25))
+    data = [['Nome do indicador', 'Quantidade de vezes que apareceu']]
+    total = 0
+
+    for indicador in indicadores:
+        data.append([indicador['nome'], count[indicador['nome']]])
+        total += count[indicador['nome']]
+    
+    data.append(['total', total])
+
+    table = Table(data)
+    table.setStyle(TableStyle([('GRID', (0,0), (-1, -1), 1, colors.black),
+                               ('ALIGN', (-1, 0), (-1, -1), 'RIGHT')]))
+    elementos.append(table)
+    documento.build(elementos)
+
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="relatorio-x-y-ate-a-b.pdf"'
+    return response

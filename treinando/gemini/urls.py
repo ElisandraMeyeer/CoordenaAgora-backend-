@@ -46,6 +46,8 @@ urlpatterns = [
     # path("<str:room_name>/", views.room, name="room"),
     path('mudar-status-bot', views.mudar_status_bot, name='mudar_status_bot'),
     path('verificar-status-bot', views.verificar_status_bot, name='verificar_status_bot'),
+    path('gerar-relatorio', views.gerar_relatorio, name='gerar_relatorio')
+
 
 
 

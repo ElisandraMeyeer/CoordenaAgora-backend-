@@ -82,6 +82,9 @@ class Conversa(models.Model):
     id = models.AutoField(primary_key = True)
     id_indicador = models.ForeignKey(Indicador, on_delete=models.DO_NOTHING,  null = True)
     status = models.BooleanField(default=True)
+    id_coordenador = models.ForeignKey(Coordenador, on_delete=models.DO_NOTHING, null = True)
+    data_hora = models.DateTimeField(auto_now_add=True)
+
 
 
 class Mensagem(models.Model):
