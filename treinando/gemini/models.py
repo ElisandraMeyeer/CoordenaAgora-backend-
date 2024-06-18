@@ -83,6 +83,7 @@ class Conversa(models.Model):
     id_indicador = models.ForeignKey(Indicador, on_delete=models.DO_NOTHING,  null = True)
     status = models.BooleanField(default=True)
     id_coordenador = models.ForeignKey(Coordenador, on_delete=models.DO_NOTHING, null = True)
+    id_aluno = models.ForeignKey(Aluno, on_delete=models.DO_NOTHING, null = True)
     data_hora = models.DateTimeField(auto_now_add=True)
 
 

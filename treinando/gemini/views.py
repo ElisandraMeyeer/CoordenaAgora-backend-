@@ -552,14 +552,14 @@ def salvar_mensagem(id_aluno, id_coordenador, texto_mensagem, quem_enviou, data_
             aluno = Aluno.objects.get(id=id_aluno)
             coordenador = Coordenador.objects.filter(instituicao=aluno.instituicao_id, curso=aluno.curso_id).first()
 
-            data['id_conversa'] = adicionar_conversa(coordenador.id)
+            data['id_conversa'] = adicionar_conversa(coordenador.id, id_aluno)
             serializer = salvar_nova_mensagem(data) 
             return Response(status=status.HTTP_201_CREATED)
         elif (ultima_mensagem.id_conversa == None):
             #se não tem uma conversa associada na última mensagem
             aluno = Aluno.objects.get(id=id_aluno)
             coordenador = Coordenador.objects.filter(instituicao=aluno.instituicao_id, curso=aluno.curso_id).first()
-            data['id_conversa'] = adicionar_conversa(coordenador.id)
+            data['id_conversa'] = adicionar_conversa(coordenador.id, id_aluno)
             serializer = salvar_nova_mensagem(data)  
             if(serializer):      
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -576,14 +576,14 @@ def salvar_mensagem(id_aluno, id_coordenador, texto_mensagem, quem_enviou, data_
                 #se a conversa não está ativa deve iniciar uma nova e a mensagem é salva com esse id da conversa nova
                 aluno = Aluno.objects.get(id=id_aluno)
                 coordenador = Coordenador.objects.filter(instituicao=aluno.instituicao_id, curso=aluno.curso_id).first()
-                data['id_conversa'] = adicionar_conversa(coordenador.id)
+                data['id_conversa'] = adicionar_conversa(coordenador.id, id_aluno)
                 serializer = salvar_nova_mensagem(data) 
                 return Response(status=status.HTTP_201_CREATED)
     else:
         #se não tem uma última mensagem (se o aluno não enviou nenhuma mensagem ainda)
         aluno = Aluno.objects.get(id=id_aluno)
         coordenador = Coordenador.objects.filter(instituicao=aluno.instituicao_id, curso=aluno.curso_id).first()
-        data['id_conversa'] = adicionar_conversa(coordenador.id)
+        data['id_conversa'] = adicionar_conversa(coordenador.id, id_aluno)
         serializer = salvar_nova_mensagem(data) 
         return Response(status=status.HTTP_201_CREATED)
 
@@ -617,11 +617,12 @@ def get_historico_conversa(ultima_mensagem):
         
     return formatted_messages
 
-def adicionar_conversa(id_coordenador):
-    print(id_coordenador)
+def adicionar_conversa(id_coordenador, id_aluno):
+    print(id_aluno)
     data = {
         'status': True,
-        'id_coordenador': id_coordenador
+        'id_coordenador': id_coordenador,
+        'id_aluno': id_aluno
     }
     serializer = ConversaSerializer(data = data)
     if serializer.is_valid():
@@ -794,10 +795,11 @@ def listar_mensagens_por_aluno(request):
 def listar_todos_alunos(request):
     if request.method == 'GET':
         # Obtém todas as mensagens que têm um aluno associado
-        mensagens_com_alunos = Mensagem.objects.exclude(id_aluno=None)
+        id_coordenador = request.GET.get('id_coordenador')
+        conversas = Conversa.objects.filter(id_coordenador=id_coordenador)
 
         # Extrai os IDs únicos dos alunos
-        ids_alunos_unicos = mensagens_com_alunos.values_list('id_aluno', flat=True).distinct()
+        ids_alunos_unicos = conversas.values_list('id_aluno', flat=True).distinct()
 
         # Busca os dados dos alunos com base nos IDs únicos
         alunos = Aluno.objects.filter(id__in=ids_alunos_unicos)
