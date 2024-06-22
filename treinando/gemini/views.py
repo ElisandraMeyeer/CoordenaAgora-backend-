@@ -73,7 +73,8 @@ def create(request):
     id_coordenador = request.data.get('id_coordenador')
     data_hora = request.data.get('data_hora')
     ultima_mensagem = Mensagem.objects.filter(id_aluno=id_aluno).order_by('id').reverse().first();
-    historico_conversa = get_historico_conversa(ultima_mensagem)
+    if (ultima_mensagem):
+        historico_conversa = get_historico_conversa(ultima_mensagem)
     salvar_mensagem(id_aluno, id_coordenador, pergunta_txt, "aluno", data_hora)
 
 
@@ -92,11 +93,12 @@ def create(request):
             'parts': parts
         })
     
-    ultima_mensagem = Mensagem.objects.filter(id_aluno=id_aluno).order_by('id').reverse().first();    
-    mensagem_count = Mensagem.objects.filter(id_conversa_id=ultima_mensagem.id_conversa, quem_enviou='aluno').count()
-    controle_bot = get_controle_bot(id_aluno)
+    ultima_mensagem = Mensagem.objects.filter(id_aluno=id_aluno).order_by('id').reverse().first(); 
+    if ultima_mensagem:
+        mensagem_count = Mensagem.objects.filter(id_conversa_id=ultima_mensagem.id_conversa, quem_enviou='aluno').count()
+        controle_bot = get_controle_bot(id_aluno)
 
-    if(controle_bot.bot_pode_responder and mensagem_count >= 6):
+    if(controle_bot.bot_pode_responder and mensagem_count >= 6 and ultima_mensagem):
         tipo = verificar_encaminhamento_agendamento(id_aluno, ultima_mensagem)
         salvar_mensagem(id_aluno, id_coordenador, "A conversa foi finalizada", "bot", data_hora)
         classificar_conversa(historico_conversa, user, ultima_mensagem.id_conversa)
@@ -227,7 +229,8 @@ def listar_instituicoes_por_nome(request):
 def listar_cursos_por_nome(request):
     if request.method == 'GET':
         nome_filtro = request.GET.get('curso', '')
-        cursos = Curso.objects.filter(nome__icontains=nome_filtro)
+        instituicao = request.GET.get('instituicao')
+        cursos = Curso.objects.filter(nome__icontains=nome_filtro,instituicao=instituicao)
         serializer = CursoSerializer(cursos, many=True)
         return Response(serializer.data)
     return Response(status=status.HTTP_400_BAD_REQUEST)
@@ -588,6 +591,7 @@ def salvar_mensagem(id_aluno, id_coordenador, texto_mensagem, quem_enviou, data_
         return Response(status=status.HTTP_201_CREATED)
 
 def salvar_nova_mensagem(data):
+    print(data)
     serializer = MensagemSerializer(data=data)
     if serializer.is_valid():
         serializer.save()
@@ -1004,9 +1008,16 @@ def gerar_relatorio(request):
     elementos.append(Spacer(1, 25))
     data = [['Nome do indicador', 'Quantidade de vezes que apareceu']]
     total = 0
-
+    
+    count_sem_classificacao = 0
+    if("Sem classificação" in indicadores):
+        count_sem_classificacao = Conversa.objects.filter(data_hora__range=[data_inicial, data_final], id_indicador=None, id_coordenador=id_coordenador).count()
+        
     for indicador in indicadores:
-        data.append([indicador['nome'], count[indicador['nome']]])
+        if(indicador != "Sem classificação"):
+            data.append([indicador['nome'], count[indicador['nome']]])
+        else:
+            data.append("Sem classificação", count_sem_classificacao)
         total += count[indicador['nome']]
     
     data.append(['total', total])

@@ -20,6 +20,7 @@ class Instituicao(models.Model):
 class Curso(models.Model):
     id = models.AutoField(primary_key = True)
     nome = models.CharField(max_length = 255)
+    instituicao = models.ForeignKey(Instituicao, on_delete=models.DO_NOTHING, null = False)
 
     def __str__(self):
         return self.nome
